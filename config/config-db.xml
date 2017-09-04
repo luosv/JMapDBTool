@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<server>
+    <config-db url="jdbc:mysql://192.168.1.82:3306/seven_config?autoReconnect=true" username="root" password="haowan123"/>
+</server>
+
+
+
