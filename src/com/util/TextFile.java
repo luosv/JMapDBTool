@@ -1,5 +1,7 @@
 package com.util;
 
+import com.alibaba.druid.util.StringUtils;
+
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Iterator;

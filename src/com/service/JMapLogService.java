@@ -1,63 +1,77 @@
 package com.service;
 
-import com.dblog.LogService;
-import com.model.JMapLogBean;
+import com.db.OptionConfigure;
+import com.model.JMapLog;
+import com.util.DateUtil;
 import com.util.Symbol;
 import com.util.TextFile;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PropertyResourceBundle;
+import java.util.ResourceBundle;
 
 /**
  * Created by luosv on 2017/9/4 0004.
  */
 public class JMapLogService {
 
-    private static final Logger log = LogManager.getLogger(JMapLogService.class);
+    private static final Logger LOGGER = LogManager.getLogger(JMapLogService.class);
+
+    private static ResourceBundle bundle = PropertyResourceBundle.getBundle("db");
+    private static Connection connection = getConnection();
 
     /**
-     * 用枚举来实现单例
+     * 执行shell脚本
      */
-    private enum Singleton {
-
-        INSTANCE;
-        JMapLogService processor;
-
-        Singleton() {
-            this.processor = new JMapLogService();
+    public static boolean executeShell() {
+        boolean isSuccess = true;
+        try {
+            String shellPath = System.getProperty("user.dir") + File.separator + "shell" + File.separator + "j_map.sh";
+            Process process = Runtime.getRuntime().exec(shellPath);
+            process.waitFor();
+            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            String result = sb.toString();
+            LOGGER.error(result);
+            isSuccess = false;
+        } catch (Exception e) {
+            LOGGER.error("j_map.sh 脚本执行出错了！！！");
         }
-
-        JMapLogService getProcessor() {
-            return processor;
-        }
-
-    }
-
-    public static JMapLogService getInstance() {
-        return Singleton.INSTANCE.getProcessor();
+        return isSuccess;
     }
 
     /**
      * 解析日志文件
-     *
-     * @throws IOException ex
      */
-    public void readLogFile() throws IOException {
-        File file = new File(System.getProperty("user.dir") + File.separator + "logs" + File.separator + "jmaplog.txt");
+    public static List<JMapLog> readLogFile() {
+        File file = new File(System.getProperty("user.dir") + File.separator + "logs" + File.separator + "j_map.log");
         if (!file.exists()) {
-            return;
+            LOGGER.error("j_map.log 不存在！！！");
+            return null;
         }
-        List<String> list = TextFile.readLine(file);
+        List<JMapLog> jMapLogList = new ArrayList<>();
+        List<String> list;
+        try {
+            list = TextFile.readLine(file);
+        } catch (IOException e) {
+            LOGGER.error("j_map.log 日志文件读取出错了！！！");
+            return null;
+        }
         List<String> temp = new ArrayList<>();
-        String[] str;
-        String[] newStr;
-        String[] ss;
+        String[] str, newStr, ss;
         for (String line : list) {
             if (line == null || "".equals(line) || line.isEmpty()) {
                 continue;
@@ -83,58 +97,101 @@ public class JMapLogService {
                 continue;
             }
             newStr[0] = ss[0];
-            log.error(newStr[0] + "  " + newStr[1] + "  " + newStr[2] + "  " + newStr[3]);
-            //writeLogToDB(Integer.valueOf(newStr[0]), Integer.valueOf(newStr[1]), Integer.valueOf(newStr[2]), newStr[3]);
+            JMapLog jMapLog = new JMapLog();
+            jMapLog.setNum(Integer.valueOf(newStr[0]));
+            jMapLog.setInstances(Integer.valueOf(newStr[1]));
+            jMapLog.setBytes(Integer.valueOf(newStr[2]));
+            jMapLog.setClassName(newStr[3]);
+            jMapLogList.add(jMapLog);
         }
         list.clear();
 //        if (file.delete()) {
-//            log.error("该轮文件解析完毕，删除成功！");
+//            LOGGER.error("j_map.log 解析完删除中...");
 //        }
+        return jMapLogList;
+    }
+
+    /**
+     * 创建数据表
+     */
+    public static String createTable() {
+        String tabName = "jmaplog" + DateUtil.getStringAllDate();
+        try {
+            Statement statement = connection.createStatement();
+            String sql = "CREATE TABLE " + tabName +
+                    "(num INTEGER not NULL, " +
+                    " instances INTEGER, " +
+                    " bytes INTEGER, " +
+                    " className VARCHAR(255), " +
+                    " PRIMARY KEY ( num ))";
+            statement.executeUpdate(sql);
+        } catch (SQLException e) {
+            LOGGER.error("创建数据表时出错了！！！");
+            return null;
+        }
+        LOGGER.error("create tabName:" + tabName + " end!");
+        return tabName;
     }
 
     /**
      * 写数据库日志
      *
-     * @param num       序号
-     * @param instances 实例
-     * @param bytes     大小
-     * @param className 类名
+     * @param tabName     表名
+     * @param jMapLogList 数据集合
      */
-    private void writeLogToDB(int num, int instances, int bytes, String className) {
-
-        JMapLogBean jMapLog = new JMapLogBean();
-
-        jMapLog.setNum(num);
-        jMapLog.setInstances(instances);
-        jMapLog.setBytes(bytes);
-        jMapLog.setClassName(className);
-
-        LogService.getInstance().execute(jMapLog);
-
+    public static void insertData(String tabName, List<JMapLog> jMapLogList) {
+        if (tabName == null || jMapLogList == null) {
+            return;
+        }
+        try {
+            connection.setAutoCommit(false);
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO " + tabName + " VALUES (?, ?, ?, ?)");
+            for (JMapLog jMapLog : jMapLogList) {
+                statement.setInt(1, jMapLog.getNum());
+                statement.setInt(2, jMapLog.getInstances());
+                statement.setInt(3, jMapLog.getBytes());
+                statement.setString(4, jMapLog.getClassName());
+                statement.addBatch();
+            }
+            LOGGER.error("insertData running...");
+            statement.executeBatch();
+            connection.commit();
+            statement.close();
+            LOGGER.error("insertData end...");
+        } catch (SQLException e) {
+            LOGGER.error("写数据库日志时出错了！！！");
+        } finally {
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
-     * 执行shell脚本
+     * 获取数据库连接的函数
+     *
+     * @return con
      */
-    public void executeShell() {
-        try {
-            String shellPath = System.getProperty("user.dir") + File.separator + "shell" + File.separator + "jmap.sh";
-            Process process = Runtime.getRuntime().exec(shellPath);
-            process.waitFor();
-
-            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-            StringBuilder sb = new StringBuilder();
-            String line;
-
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
+    private static Connection getConnection() {
+        OptionConfigure configure = new OptionConfigure();
+        if (configure.hasConfig()) {
+            try {
+                configure.initFromXml();
+            } catch (ParserConfigurationException e) {
+                e.printStackTrace();
             }
-            String result = sb.toString();
-            log.error(result);
-        } catch (Exception e) {
-            e.printStackTrace();
         }
+        Connection conn = null;
+        try {
+            Class.forName(configure.getClassname());
+            conn = DriverManager.getConnection(configure.getUrl(), configure.getUsername()
+                    , configure.getPassword());
+        } catch (Exception e) {
+            LOGGER.error("数据库连接失败" + e.getMessage());
+        }
+        return conn;
     }
 
 }
