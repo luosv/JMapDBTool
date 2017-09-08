@@ -4,7 +4,7 @@
 
 echo $$ Running...
 
-GAMEPID=$(ps aux | grep java | grep ../../game/gameserver/GameServer.jar | awk '{print $2}')
+GAMEPID=$(ps aux | grep java | grep game/gameserver/GameServer.jar | awk '{print $2}')
 
 if [ ! -n "$GAMEPID" ]; then
     echo Error...

@@ -16,8 +16,6 @@ import java.io.InputStreamReader;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.PropertyResourceBundle;
-import java.util.ResourceBundle;
 
 /**
  * Created by luosv on 2017/9/4 0004.
@@ -26,29 +24,41 @@ public class JMapLogService {
 
     private static final Logger LOGGER = LogManager.getLogger(JMapLogService.class);
 
-    private static ResourceBundle bundle = PropertyResourceBundle.getBundle("db");
+    private static final String RUNNING_SHELL_FILE = "j_map.sh";
+    private static final String SHELL_FILE_DIR = System.getProperty("user.dir") + File.separator + "shell";
     private static Connection connection = getConnection();
 
     /**
      * 执行shell脚本
      */
     public static boolean executeShell() {
+        LOGGER.error("Begin to execute a shell script...");
         boolean isSuccess = true;
+        ProcessBuilder pb = new ProcessBuilder("./" + RUNNING_SHELL_FILE);
+        pb.directory(new File(SHELL_FILE_DIR));
+        int runningStatus = 0;
+        String s;
         try {
-            String shellPath = System.getProperty("user.dir") + File.separator + "shell" + File.separator + "j_map.sh";
-            Process process = Runtime.getRuntime().exec(shellPath);
-            process.waitFor();
-            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
+            Process p = pb.start();
+            BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            BufferedReader stdError = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+            while ((s = stdInput.readLine()) != null) {
+                LOGGER.error(s);
             }
-            String result = sb.toString();
-            LOGGER.error(result);
+            while ((s = stdError.readLine()) != null) {
+                LOGGER.error(s);
+            }
+            try {
+                runningStatus = p.waitFor();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (runningStatus == 0) {
             isSuccess = false;
-        } catch (Exception e) {
-            LOGGER.error("j_map.sh 脚本执行出错了！！！");
+            LOGGER.error("Output log successful!");
         }
         return isSuccess;
     }
@@ -57,6 +67,7 @@ public class JMapLogService {
      * 解析日志文件
      */
     public static List<JMapLog> readLogFile() {
+        LOGGER.error("Start parsing the j_map.log...");
         File file = new File(System.getProperty("user.dir") + File.separator + "logs" + File.separator + "j_map.log");
         if (!file.exists()) {
             LOGGER.error("j_map.log 不存在！！！");
@@ -68,6 +79,7 @@ public class JMapLogService {
             list = TextFile.readLine(file);
         } catch (IOException e) {
             LOGGER.error("j_map.log 日志文件读取出错了！！！");
+            e.printStackTrace();
             return null;
         }
         List<String> temp = new ArrayList<>();
@@ -105,9 +117,10 @@ public class JMapLogService {
             jMapLogList.add(jMapLog);
         }
         list.clear();
-//        if (file.delete()) {
-//            LOGGER.error("j_map.log 解析完删除中...");
-//        }
+        LOGGER.error("The j_map.log parsing is complete!");
+        if (file.delete()) {
+            LOGGER.error("The j_map.log delete completed!");
+        }
         return jMapLogList;
     }
 
@@ -116,6 +129,7 @@ public class JMapLogService {
      */
     public static String createTable() {
         String tabName = "jmaplog" + DateUtil.getStringAllDate();
+        LOGGER.error("Create table: " + tabName + "...");
         try {
             Statement statement = connection.createStatement();
             String sql = "CREATE TABLE " + tabName +
@@ -127,9 +141,10 @@ public class JMapLogService {
             statement.executeUpdate(sql);
         } catch (SQLException e) {
             LOGGER.error("创建数据表时出错了！！！");
+            e.printStackTrace();
             return null;
         }
-        LOGGER.error("create tabName:" + tabName + " end!");
+        LOGGER.error("Create table successful!");
         return tabName;
     }
 
@@ -153,19 +168,15 @@ public class JMapLogService {
                 statement.setString(4, jMapLog.getClassName());
                 statement.addBatch();
             }
-            LOGGER.error("insertData running...");
+            LOGGER.error("InsertData running...");
             statement.executeBatch();
             connection.commit();
             statement.close();
-            LOGGER.error("insertData end...");
+            LOGGER.error("InsertData successful!");
+            LOGGER.error("Waiting...");
         } catch (SQLException e) {
             LOGGER.error("写数据库日志时出错了！！！");
-        } finally {
-            try {
-                connection.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+            e.printStackTrace();
         }
     }
 
@@ -190,6 +201,7 @@ public class JMapLogService {
                     , configure.getPassword());
         } catch (Exception e) {
             LOGGER.error("数据库连接失败" + e.getMessage());
+            e.printStackTrace();
         }
         return conn;
     }
