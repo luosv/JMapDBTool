@@ -108,14 +108,14 @@ public class OptionConfigure {
         }
     }
 
-    public static void main(String[] args) throws ParserConfigurationException {
-        OptionConfigure configure = new OptionConfigure();
-        configure.initFromXml();
-        LOGGER.error(configure.getClassname());
-        LOGGER.error(configure.getUrl());
-        LOGGER.error(configure.getUsername());
-        LOGGER.error(configure.getPassword());
-        LOGGER.error(configure.getDatabase());
-    }
+//    public static void main(String[] args) throws ParserConfigurationException {
+//        OptionConfigure configure = new OptionConfigure();
+//        configure.initFromXml();
+//        LOGGER.error(configure.getClassname());
+//        LOGGER.error(configure.getUrl());
+//        LOGGER.error(configure.getUsername());
+//        LOGGER.error(configure.getPassword());
+//        LOGGER.error(configure.getDatabase());
+//    }
 
 }
