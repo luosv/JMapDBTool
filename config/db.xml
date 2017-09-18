@@ -4,3 +4,5 @@
            url="jdbc:mysql://localhost:3306/j_map_log?useUnicode=true&amp;characterEncoding=UTF-8&amp;zeroDateTimeBehavior=convertToNull"
            username="root" password="root" database="j_map_log"/>
 </configure>
+
+<!--服务器上配置时需额外给予jmapdbtool.jar与shell下的j_map.sh读写权限：chmod 777-->
